@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 
 
 class DadosAbertosDownloader:
-    def __init__(self, base_url):
-        self.base_url = base_url
+    def __init__(self):
+        self.base_url = 'https://dadosabertos.c3sl.ufpr.br/curitiba/SESPAMedicoUnidadesMunicipaisDeSaude/'
 
     @staticmethod
     def criar_pasta_se_nao_existir(caminho):
@@ -49,9 +49,20 @@ class DadosAbertosDownloader:
 
     def download_csvs(self, ano):
         csv_links, soup = self.obter_links_csvs(ano)
+
+        # Check existing files
+        pasta_destino = 'Dados abertos baixados'
+        self.criar_pasta_se_nao_existir(pasta_destino)
+        csv_links = [link for link in csv_links if
+                     not os.path.exists(os.path.join(pasta_destino, ano, link.split('/')[-1]))]
+
+        if not csv_links:
+            print('Não há dados novos para baixar.')
+            return
+
         total_size_gb = self.obter_tamanho_arquivos(soup, csv_links)
 
-        print(f'Encontrados {len(csv_links)} arquivos para o ano {ano} em {self.base_url}')
+        print(f'Encontrados {len(csv_links)} arquivos novos para o ano {ano} em {self.base_url}')
         print(
             f'ATENÇÃO: O tamanho total dos arquivos baixados será de {total_size_gb:.2f} GB. Recomenda-se que você tenha pelo menos {total_size_gb * 2:.2f} GB livres. Deseja continuar? Digite S ou N')
 
@@ -61,16 +72,7 @@ class DadosAbertosDownloader:
             return
 
         print('Iniciando download...')
-        pasta_destino = 'Dados abertos baixados'
-        self.criar_pasta_se_nao_existir(pasta_destino)
-
         self.baixar_arquivos(csv_links, pasta_destino)
         print('Todos os arquivos baixados com sucesso.')
 
 
-# Example usage:
-if __name__ == "__main__":
-    downloader = DadosAbertosDownloader(
-        "https://dadosabertos.c3sl.ufpr.br/curitiba/SESPAMedicoUnidadesMunicipaisDeSaude/")
-    ano = input("Digite o ano para baixar os arquivos CSV: ").strip()
-    downloader.download_csvs(ano)

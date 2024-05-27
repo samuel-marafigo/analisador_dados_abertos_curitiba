@@ -1,27 +1,44 @@
-"""
-Função para separar um arquivo CSV em diferentes arquivos com base no mês da coluna "Data do Atendimento".
-Recebe o caminho ou nome do arquivo CSV e cria novos arquivos CSV nomeados "{MÊS} nome original.csv".
-"""
-
 import pandas as pd
+import os
+import glob
+from tqdm import tqdm
 
+def separar_meses_em_diferentes_arquivos(ano):
+    """
+    Função para separar arquivos CSV em diferentes arquivos com base no mês da coluna "Data do Atendimento".
+    Processa todos os arquivos CSV na pasta 'Arquivos' cujo nome contém 'LIMPO {ano}'.
+    Após o processamento, remove os arquivos originais 'LIMPO {ano}'.
+    """
+    pasta = f'Dados abertos baixados/{ano}/Arquivos'
+    padrao_arquivo = os.path.join(pasta, f'LIMPO {ano}*.csv')
+    arquivos = glob.glob(padrao_arquivo)
 
-def separar_meses_em_diferentes_arquivos(caminho_csv):
-    # Ler o arquivo CSV com a codificação 'latin1'
-    df = pd.read_csv(caminho_csv, sep=';', encoding='latin1')
+    for caminho_csv in tqdm(arquivos, desc="Processando datas de atendimento", unit="arquivo"):
+        df = pd.read_csv(caminho_csv, sep=';', encoding='latin1')
+        df['Data do Atendimento'] = pd.to_datetime(df['Data do Atendimento'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
 
-    # Converter a coluna "Data do Atendimento" para datetime
-    df['Data do Atendimento'] = pd.to_datetime(df['Data do Atendimento'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
+        if df['Data do Atendimento'].isnull().any():
+            raise ValueError(f"Erro ao converter a coluna 'Data do Atendimento' para datetime no arquivo {caminho_csv}.")
 
-    # Verificar se a conversão teve sucesso
-    if df['Data do Atendimento'].isnull().any():
-        raise ValueError("Erro ao converter a coluna 'Data do Atendimento' para datetime.")
+        # Ensure the column is of datetime type before filtering
+        if not pd.api.types.is_datetime64_any_dtype(df['Data do Atendimento']):
+            raise TypeError("A coluna 'Data do Atendimento' não é do tipo datetime após a conversão.")
 
-    # Criar uma coluna "Mês" baseada na coluna "Data do Atendimento"
-    df['Mês'] = df['Data do Atendimento'].dt.strftime('%B')
+        # Filter rows to only include the specified year
+        df_filtered = df[df['Data do Atendimento'].dt.year == int(ano)].copy()
 
-    # Separar o DataFrame por mês e salvar arquivos separados
-    for mes, grupo in df.groupby('Mês'):
-        nome_novo_arquivo = f"{mes} {caminho_csv}"
-        grupo.drop(columns=['Mês']).to_csv(nome_novo_arquivo, sep=';', index=False, encoding='latin1')
-        print(f"Arquivo criado: {nome_novo_arquivo}")
+        if df_filtered.empty:
+            print(f"Nenhum dado encontrado para o ano {ano} no arquivo {caminho_csv}.")
+            continue
+
+        df_filtered.loc[:, 'Mês'] = df_filtered['Data do Atendimento'].dt.strftime('%B')
+
+        for mes, grupo in df_filtered.groupby('Mês'):
+            nome_novo_arquivo = os.path.join(pasta, f"{mes} {os.path.basename(caminho_csv)}")
+            grupo.drop(columns=['Mês']).to_csv(nome_novo_arquivo, sep=';', index=False, encoding='latin1')
+            #print(f"Arquivo criado: {nome_novo_arquivo}")
+
+    for caminho_csv in tqdm(arquivos, desc="Removendo arquivos antigos", unit="arquivo"):
+        os.remove(caminho_csv)
+        #print(f"Arquivo antigo removido: {caminho_csv}")
+

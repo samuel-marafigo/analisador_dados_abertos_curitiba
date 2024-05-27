@@ -161,3 +161,5 @@ cython_debug/
 
 # csv files 
 *.csv
+*.db
+Dados abertos baixados/
